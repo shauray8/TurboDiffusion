@@ -1,16 +1,17 @@
-# -----------------------------------------------------------------------------
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES.
-# All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
-# This codebase constitutes NVIDIA proprietary technology and is strictly
-# confidential. Any unauthorized reproduction, distribution, or disclosure
-# of this code, in whole or in part, outside NVIDIA is strictly prohibited
-# without prior written consent.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# For inquiries regarding the use of this code in other NVIDIA proprietary
-# projects, please contact the Deep Imagination Research Team at
-# dir@exchange.nvidia.com.
-# -----------------------------------------------------------------------------
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ import wandb.util
 from omegaconf import DictConfig
 
 from imaginaire.lazy_config.lazy import LazyConfig
-from imaginaire.utils import distributed, log, object_store
+from imaginaire.utils import distributed, log
 from imaginaire.utils.easy_io import easy_io
 
 if TYPE_CHECKING:
@@ -86,15 +87,9 @@ def _read_wandb_id(config_job: JobConfig, config_checkpoint: CheckpointConfig) -
         wandb_id (str | None): W&B job ID.
     """
     wandb_id = None
-    if config_checkpoint.load_from_object_store.enabled:
-        object_store_loader = object_store.ObjectStore(config_checkpoint.load_from_object_store)
-        wandb_id_path = f"{config_job.path}/wandb_id.txt"
-        if object_store_loader.object_exists(key=wandb_id_path):
-            wandb_id = object_store_loader.load_object(key=wandb_id_path, type="text").strip()
-    else:
-        wandb_id_path = f"{config_job.path_local}/wandb_id.txt"
-        if os.path.isfile(wandb_id_path):
-            wandb_id = open(wandb_id_path).read().strip()
+    wandb_id_path = f"{config_job.path_local}/wandb_id.txt"
+    if os.path.isfile(wandb_id_path):
+        wandb_id = open(wandb_id_path).read().strip()
     return wandb_id
 
 
@@ -107,11 +102,6 @@ def _write_wandb_id(config_job: JobConfig, config_checkpoint: CheckpointConfig, 
         wandb_id (str): The W&B job ID.
     """
     content = f"{wandb_id}\n"
-    if config_checkpoint.save_to_object_store.enabled:
-        object_store_saver = object_store.ObjectStore(config_checkpoint.save_to_object_store)
-        wandb_id_path = f"{config_job.path}/wandb_id.txt"
-        object_store_saver.save_object(content, key=wandb_id_path, type="text")
-    else:
-        wandb_id_path = f"{config_job.path_local}/wandb_id.txt"
-        with open(wandb_id_path, "w") as file:
-            file.write(content)
+    wandb_id_path = f"{config_job.path_local}/wandb_id.txt"
+    with open(wandb_id_path, "w") as file:
+        file.write(content)

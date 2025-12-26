@@ -41,8 +41,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--sigma_max", type=float, default=80, help="Initial sigma for rCM")
     parser.add_argument("--vae_path", type=str, default="checkpoints/Wan2.1_VAE.pth", help="Path to the Wan2.1 VAE")
     parser.add_argument("--text_encoder_path", type=str, default="checkpoints/models_t5_umt5-xxl-enc-bf16.pth", help="Path to the umT5 text encoder")
-    parser.add_argument("--num_frames", type=int, default=77, help="Number of frames to generate")
-    parser.add_argument("--prompt", type=str, required=True, help="Text prompt for video generation")
+    parser.add_argument("--num_frames", type=int, default=81, help="Number of frames to generate")
+    parser.add_argument("--prompt", type=str, default=None, help="Text prompt for video generation (required unless --serve)")
     parser.add_argument("--resolution", default="480p", type=str, help="Resolution of the generated output")
     parser.add_argument("--aspect_ratio", default="16:9", type=str, help="Aspect ratio of the generated output (width:height)")
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
@@ -51,20 +51,35 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--sla_topk", type=float, default=0.1, help="Top-k ratio for SLA/SageSLA attention")
     parser.add_argument("--quant_linear", action="store_true", help="Whether to replace Linear layers with quantized versions")
     parser.add_argument("--default_norm", action="store_true", help="Whether to replace LayerNorm/RMSNorm layers with faster versions")
+    parser.add_argument("--serve", action="store_true", help="Launch interactive TUI server mode (keeps model loaded)")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_arguments()
 
+    # Handle serve mode
+    if args.serve:
+        # Set mode to t2v for the TUI server
+        args.mode = "t2v"
+        from serve.tui import main as serve_main
+        serve_main(args)
+        exit(0)
+
+    # Validate prompt is provided for one-shot mode
+    if args.prompt is None:
+        log.error("--prompt is required (unless using --serve mode)")
+        exit(1)
+
     log.info(f"Computing embedding for prompt: {args.prompt}")
-    text_emb = get_umt5_embedding(checkpoint_path=args.text_encoder_path, prompts=args.prompt).to(**tensor_kwargs)
+    with torch.no_grad():
+        text_emb = get_umt5_embedding(checkpoint_path=args.text_encoder_path, prompts=args.prompt).to(**tensor_kwargs)
     clear_umt5_memory()
 
     log.info(f"Loading DiT model from {args.dit_path}")
     net = create_model(dit_path=args.dit_path, args=args).cpu()
     torch.cuda.empty_cache()
-    log.success(f"Successfully loaded DiT model.")
+    log.success("Successfully loaded DiT model.")
     
     tokenizer = Wan2pt1VAEInterface(vae_pth=args.vae_path)
 
@@ -126,7 +141,8 @@ if __name__ == "__main__":
     net.cpu()
     torch.cuda.empty_cache()
 
-    video = tokenizer.decode(samples)
+    with torch.no_grad():
+        video = tokenizer.decode(samples)
 
     to_show.append(video.float().cpu())
 
